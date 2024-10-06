@@ -12,6 +12,7 @@ root.geometry("1000x600")  # Adjusted size to accommodate sidebars and main sect
 voter_database = None
 searched_index = None
 votes_visible = False  # To toggle view/hide votes
+pc_timeout_occurred = False  # Track if a timeout has occurred
 
 
 # Set up serial communication with CP2102
@@ -31,6 +32,7 @@ def upload_csv():
     else:
         upload_status_label.config(text="No CSV uploaded.", fg="red")
 
+
 # Function to search for a voter's details by index number
 def search_voter():
     global searched_index
@@ -42,7 +44,21 @@ def search_voter():
                 if row[4] == index_number:  # Assuming index number is in the 5th column
                     name, department, program, level = row[3], row[0], row[1], row[2]
                     voter_details_label.config(text=f"Name: {name}\nDepartment: {department}\nProgram: {program}\nLevel: {level}\nIndex: {index_number}", fg="green")
-                    result_label.config(text="Voter found!", fg="green")
+                    
+                    # Send query to Arduino to check if the voter has already voted
+                    if ser:
+                        ser.write(f"HAS_VOTED {index_number}\n".encode())
+                        time.sleep(2)
+                        arduino_response = ser.readline().decode('utf-8').strip()
+                        if arduino_response == "VOTER_VOTED":
+                            result_label.config(text="Voter has already voted.", fg="red")
+                            confirm_button.config(state=tk.DISABLED)  # Disable confirm button if already voted
+                        else:
+                            result_label.config(text="Voter found!", fg="green")
+                            confirm_button.config(state=tk.NORMAL)  # Enable confirm button if eligible
+                    else:
+                        result_label.config(text="Voter found!", fg="green")
+
                     searched_index = index_number  # Store the searched index number
                     log_messages.insert(tk.END, f"Voter {index_number} found.\n")
                     return
@@ -50,6 +66,28 @@ def search_voter():
             log_messages.insert(tk.END, f"Voter {index_number} not found.\n")
     else:
         result_label.config(text="Please upload a CSV file and enter an index number.", fg="red")
+
+
+
+# # Function to search for a voter's details by index number
+# def search_voter():
+#     global searched_index
+#     index_number = index_entry.get()  # Get the entered index number
+#     if voter_database and index_number:
+#         with open(voter_database, mode='r') as file:
+#             reader = csv.reader(file)
+#             for row in reader:
+#                 if row[4] == index_number:  # Assuming index number is in the 5th column
+#                     name, department, program, level = row[3], row[0], row[1], row[2]
+#                     voter_details_label.config(text=f"Name: {name}\nDepartment: {department}\nProgram: {program}\nLevel: {level}\nIndex: {index_number}", fg="green")
+#                     result_label.config(text="Voter found!", fg="green")
+#                     searched_index = index_number  # Store the searched index number
+#                     log_messages.insert(tk.END, f"Voter {index_number} found.\n")
+#                     return
+#             result_label.config(text="Voter not found.", fg="red")
+#             log_messages.insert(tk.END, f"Voter {index_number} not found.\n")
+#     else:
+#         result_label.config(text="Please upload a CSV file and enter an index number.", fg="red")
 
 # Function to confirm voter and send command to Arduino
 def confirm_voter():
@@ -85,15 +123,15 @@ def confirm_voter():
         log_messages.insert(tk.END, "Attempted to confirm voter without a search.\n")
         print("Debug: No voter searched yet")  # Debugging message
 
-# Function to reject voter
-def reject_voter():
-    global searched_index
-    if searched_index:
-        ser.write(f"REJECT_VOTER {searched_index}\n".encode())  # Send rejection command to Arduino
-        log_messages.insert(tk.END, f"Voter {searched_index} rejected.\n")
-        result_label.config(text="Voter rejected.", fg="red")
-    else:
-        result_label.config(text="Please search for a voter first.", fg="red")
+# # Function to reject voter
+# def reject_voter():
+#     global searched_index
+#     if searched_index:
+#         ser.write(f"REJECT_VOTER {searched_index}\n".encode())  # Send rejection command to Arduino
+#         log_messages.insert(tk.END, f"Voter {searched_index} rejected.\n")
+#         result_label.config(text="Voter rejected.", fg="red")
+#     else:
+#         result_label.config(text="Please search for a voter first.", fg="red")
 
 # Function to toggle between view and hide votes
 def toggle_votes():
@@ -131,13 +169,32 @@ def end_voting():
     ser.write(b'END_VOTE\n')
     log_messages.insert(tk.END, "Voting ended.\n")
 
+# Function to handle "PC Timeout" and enable the button
+def handle_timeout():
+    global pc_timeout_occurred
+    pc_timeout_occurred = True
+    online_button.config(state=tk.NORMAL)  # Enable the online button
+    log_messages.insert(tk.END, "PC timeout detected. Please indicate PC is back online.\n")
+
+
+# Function to send an "ONLINE" command to the Arduino
+def indicate_online():
+    global pc_timeout_occurred  # Declare 'global' at the top before using the variable
+    if ser and pc_timeout_occurred:
+        ser.write(b'ONLINE\n')
+        log_messages.insert(tk.END, "PC is back online.\n")
+        online_button.config(state=tk.DISABLED)  # Disable button again
+        pc_timeout_occurred = False
+
+
 # Function to read logs from Arduino
 def read_logs():
     if ser:
         while ser.in_waiting > 0:
             data = ser.readline().decode('utf-8').strip()
-            if data:
-                log_messages.insert(tk.END, f"{data}\n")
+            if "PC timeout" in data:
+                handle_timeout()  # Detect and handle PC timeout
+            log_messages.insert(tk.END, f"{data}\n")
 
 # Function to close the serial port and exit the app
 def on_closing():
@@ -159,13 +216,15 @@ paned_window.pack(fill=tk.BOTH, expand=1)
 left_frame = tk.Frame(paned_window, width=200, bg='lightgray')
 paned_window.add(left_frame, minsize=150)  # Add left panel to paned window
 
+# Main Frame in the middle (adjustable)
+main_frame = tk.Frame(paned_window, bg='white')
+paned_window.add(main_frame, minsize=300)  # Add main panel to paned window
+
 # Right Frame for logs (adjustable)
 right_frame = tk.Frame(paned_window, width=200, bg='lightgray')
 paned_window.add(right_frame, minsize=150)  # Add right panel to paned window
 
-# Main Frame in the middle (non-adjustable)
-main_frame = tk.Frame(paned_window, bg='white')
-paned_window.add(main_frame, minsize=300)  # Add main panel to paned window
+
 
 # Start Button
 start_button = tk.Button(main_frame, text="Start Voting", command=start_voting)
@@ -201,6 +260,10 @@ voter_details_label.pack(pady=10)
 confirm_button = tk.Button(main_frame, text="Confirm Voter", command=confirm_voter)
 confirm_button.pack(pady=10)
 
+# Online Button (blurred initially, enabled on PC timeout)
+online_button = tk.Button(main_frame, text="Indicate PC Online", command=indicate_online, state=tk.DISABLED)
+online_button.pack(pady=10)
+
 # View Votes Button
 view_votes_button = tk.Button(left_frame, text="View Votes", command=toggle_votes)
 view_votes_button.pack(pady=10)
@@ -212,6 +275,10 @@ result_label.pack(pady=5)
 # Vote Sidebar for displaying vote counts (left side)
 vote_sidebar = scrolledtext.ScrolledText(left_frame, width=25, height=30, bg='lightgray', state=tk.DISABLED)
 vote_sidebar.pack(padx=5, pady=5, fill=tk.BOTH, expand=True)
+
+# Log Label
+log_label = tk.Label(right_frame, text="Log Messages", justify="left")
+log_label.pack(pady=10)
 
 # Log Sidebar for displaying logs (right side)
 log_messages = scrolledtext.ScrolledText(right_frame, width=25, height=30, bg='lightgray')
