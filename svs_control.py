@@ -212,19 +212,18 @@ log_messages.set("Voting Logs:\n")
 paned_window = tk.PanedWindow(root, orient=tk.HORIZONTAL)
 paned_window.pack(fill=tk.BOTH, expand=1)
 
+
 # Left Frame for votes (adjustable)
 left_frame = tk.Frame(paned_window, width=200, bg='lightgray')
-paned_window.add(left_frame, minsize=150)  # Add left panel to paned window
+paned_window.add(left_frame, minsize=200)  # Add left panel to paned window
 
 # Main Frame in the middle (adjustable)
 main_frame = tk.Frame(paned_window, bg='white')
-paned_window.add(main_frame, minsize=300)  # Add main panel to paned window
+paned_window.add(main_frame, minsize=500)  # Add main panel to paned window
 
 # Right Frame for logs (adjustable)
 right_frame = tk.Frame(paned_window, width=200, bg='lightgray')
-paned_window.add(right_frame, minsize=150)  # Add right panel to paned window
-
-
+paned_window.add(right_frame, minsize=200)  # Add right panel to paned window
 
 # Start Button
 start_button = tk.Button(main_frame, text="Start Voting", command=start_voting)
