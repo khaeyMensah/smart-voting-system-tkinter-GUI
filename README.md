@@ -138,7 +138,7 @@ python svs_control.py
 
 ## Screenshots
 
-[Tkinter GUI](/tkinter-gui.jpg)
+![Tkinter GUI](images/tkinter-gui.jpg)
 
 ## Future Enhancements
 
