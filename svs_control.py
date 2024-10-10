@@ -17,7 +17,7 @@ pc_timeout_occurred = False  # Track if a timeout has occurred
 
 # Set up serial communication with CP2102
 try:
-    ser = serial.Serial('COM8', 9600, timeout=2)  # Adjust COM port as needed
+    ser = serial.Serial('COM7', 9600, timeout=2)  # Adjust COM port as needed
     time.sleep(2)  # Allow some time for serial connection to establish
 except serial.SerialException:
     ser = None  # Handle case where Arduino is not connected
@@ -32,7 +32,6 @@ def upload_csv():
     else:
         upload_status_label.config(text="No CSV uploaded.", fg="red")
 
-
 # Function to search for a voter's details by index number
 def search_voter():
     global searched_index
@@ -44,7 +43,7 @@ def search_voter():
                 if row[4] == index_number:  # Assuming index number is in the 5th column
                     name, department, program, level = row[3], row[0], row[1], row[2]
                     voter_details_label.config(text=f"Name: {name}\nDepartment: {department}\nProgram: {program}\nLevel: {level}\nIndex: {index_number}", fg="green")
-                    
+
                     # Send query to Arduino to check if the voter has already voted
                     if ser:
                         ser.write(f"HAS_VOTED {index_number}\n".encode())
@@ -68,60 +67,124 @@ def search_voter():
         result_label.config(text="Please upload a CSV file and enter an index number.", fg="red")
 
 
-
-# # Function to search for a voter's details by index number
-# def search_voter():
-#     global searched_index
-#     index_number = index_entry.get()  # Get the entered index number
-#     if voter_database and index_number:
-#         with open(voter_database, mode='r') as file:
-#             reader = csv.reader(file)
-#             for row in reader:
-#                 if row[4] == index_number:  # Assuming index number is in the 5th column
-#                     name, department, program, level = row[3], row[0], row[1], row[2]
-#                     voter_details_label.config(text=f"Name: {name}\nDepartment: {department}\nProgram: {program}\nLevel: {level}\nIndex: {index_number}", fg="green")
-#                     result_label.config(text="Voter found!", fg="green")
-#                     searched_index = index_number  # Store the searched index number
-#                     log_messages.insert(tk.END, f"Voter {index_number} found.\n")
-#                     return
-#             result_label.config(text="Voter not found.", fg="red")
-#             log_messages.insert(tk.END, f"Voter {index_number} not found.\n")
-#     else:
-#         result_label.config(text="Please upload a CSV file and enter an index number.", fg="red")
-
-# Function to confirm voter and send command to Arduino
+# Function to confirm voter eligibility
 def confirm_voter():
     global searched_index
     if searched_index:
         index_number = searched_index  # Get the last searched index number
         if ser:
             ser.write(f"CONFIRM_VOTER {index_number}\n".encode())  # Send confirmation command to Arduino
-            print(f"Debug: Sent CONFIRM_VOTER {index_number} to Arduino")  # Debugging message
 
-            # Wait for Arduino response (increased wait time for better syncing)
-            time.sleep(2)  # Give more time for Arduino to process
-            if ser.in_waiting > 0:  # Check if there's any data waiting in the buffer
+            time.sleep(2)  # Wait for Arduino to respond
+            if ser.in_waiting > 0:  # Check for response
                 arduino_response = ser.readline().decode('utf-8').strip()
-                print(f"Debug: Arduino Response: {arduino_response}")  # Debugging message
 
                 if arduino_response == "VOTER_CONFIRMED":
                     log_messages.insert(tk.END, f"Voter {searched_index} confirmed.\n")
                     result_label.config(text="Voter confirmed. Proceed to voting.", fg="green")
+                    confirm_button.config(state=tk.DISABLED)  # Disable confirm button after confirmation
+
                 elif arduino_response == "VOTER_ERROR":
-                    result_label.config(text="Error: Voter not found in Arduino system.", fg="red")
-                else:
-                    result_label.config(text="Unexpected response from Arduino system.", fg="orange")
+                    result_label.config(text="Error: Voter not found or already voted.", fg="red")
             else:
-                print("Debug: No response from Arduino system")  # Debugging message
                 result_label.config(text="No response from Arduino system.", fg="orange")
         else:
-            print("Debug: Arduino not connected, mock response used")  # Debugging message
-            log_messages.insert(tk.END, f"Voter {searched_index} confirmed (mock mode).\n")
-            result_label.config(text="Voter confirmed (mock mode).", fg="green")
+            result_label.config(text="Arduino not connected.", fg="red")
     else:
         result_label.config(text="Please search for a voter first.", fg="red")
-        log_messages.insert(tk.END, "Attempted to confirm voter without a search.\n")
-        print("Debug: No voter searched yet")  # Debugging message
+
+
+# def confirm_voter():
+#     global searched_index
+#     if searched_index:
+#         index_number = searched_index  # Get the last searched index number
+#         if ser:
+#             ser.write(f"CONFIRM_VOTER {index_number}\n".encode())
+
+#             time.sleep(2)  # Wait for Arduino to respond
+#             if ser.in_waiting > 0:  # Check for response
+#                 arduino_response = ser.readline().decode('utf-8').strip()
+
+#                 if arduino_response == "VOTER_CONFIRMED":
+#                     log_messages.insert(tk.END, f"Voter {searched_index} confirmed.\n")
+#                     result_label.config(text="Voter confirmed. Proceed to voting.", fg="green")
+#                 elif arduino_response == "VOTER_ERROR":
+#                     result_label.config(text="Error: Voter not found in system.", fg="red")
+#             else:
+#                 result_label.config(text="No response from Arduino system.", fg="orange")
+#         else:
+#             result_label.config(text="Arduino not connected.", fg="red")
+#     else:
+#         result_label.config(text="Please search for a voter first.", fg="red")
+
+
+# # Function to confirm voter and send command to Arduino
+# def confirm_voter():
+#     global searched_index
+#     if searched_index:
+#         index_number = searched_index  # Get the last searched index number
+#         if ser:
+#             ser.write(f"CONFIRM_VOTER {index_number}\n".encode())  # Send confirmation command to Arduino
+#             print(f"Debug: Sent CONFIRM_VOTER {index_number} to Arduino")  # Debugging message
+
+#             # Wait for Arduino response (increased wait time for better syncing)
+#             time.sleep(2)  # Give more time for Arduino to process
+#             if ser.in_waiting > 0:  # Check if there's any data waiting in the buffer
+#                 arduino_response = ser.readline().decode('utf-8').strip()
+#                 print(f"Debug: Arduino Response: {arduino_response}")  # Debugging message
+
+#                 if arduino_response == "VOTER_CONFIRMED":
+#                     log_messages.insert(tk.END, f"Voter {searched_index} confirmed.\n")
+#                     result_label.config(text="Voter confirmed. Proceed to voting.", fg="green")
+#                 elif arduino_response == "VOTER_ERROR":
+#                     log_messages.insert(tk.END, f"Voter {searched_index} not found in system.\n")
+#                     result_label.config(text="Error: Voter not found in Arduino system.", fg="red")
+#             else:
+#                 log_messages.insert(tk.END, f"No response from Arduino system for voter {searched_index}.\n")
+#                 result_label.config(text="No response from Arduino system.", fg="orange")
+#         else:
+#             print("Debug: Arduino not connected, mock response used")  # Debugging message
+#             log_messages.insert(tk.END, f"Voter {searched_index} confirmed (mock mode).\n")
+#             result_label.config(text="Voter confirmed (mock mode).", fg="green")
+#     else:
+#         result_label.config(text="Please search for a voter first.", fg="red")
+#         log_messages.insert(tk.END, "Attempted to confirm voter without a search.\n")
+#         print("Debug: No voter searched yet")  # Debugging message
+
+
+# # Function to confirm voter and send command to Arduino
+# def confirm_voter():
+#     global searched_index
+#     if searched_index:
+#         index_number = searched_index  # Get the last searched index number
+#         if ser:
+#             ser.write(f"CONFIRM_VOTER {index_number}\n".encode())  # Send confirmation command to Arduino
+#             print(f"Debug: Sent CONFIRM_VOTER {index_number} to Arduino")  # Debugging message
+
+#             # Wait for Arduino response (increased wait time for better syncing)
+#             time.sleep(2)  # Give more time for Arduino to process
+#             if ser.in_waiting > 0:  # Check if there's any data waiting in the buffer
+#                 arduino_response = ser.readline().decode('utf-8').strip()
+#                 print(f"Debug: Arduino Response: {arduino_response}")  # Debugging message
+
+#                 if arduino_response == "VOTER_CONFIRMED":
+#                     log_messages.insert(tk.END, f"Voter {searched_index} confirmed.\n")
+#                     result_label.config(text="Voter confirmed. Proceed to voting.", fg="green")
+#                 elif arduino_response == "VOTER_ERROR":
+#                     result_label.config(text="Error: Voter not found in Arduino system.", fg="red")
+#                 else:
+#                     result_label.config(text="Unexpected response from Arduino system.", fg="orange")
+#             else:
+#                 print("Debug: No response from Arduino system")  # Debugging message
+#                 result_label.config(text="No response from Arduino system.", fg="orange")
+#         else:
+#             print("Debug: Arduino not connected, mock response used")  # Debugging message
+#             log_messages.insert(tk.END, f"Voter {searched_index} confirmed (mock mode).\n")
+#             result_label.config(text="Voter confirmed (mock mode).", fg="green")
+#     else:
+#         result_label.config(text="Please search for a voter first.", fg="red")
+#         log_messages.insert(tk.END, "Attempted to confirm voter without a search.\n")
+#         print("Debug: No voter searched yet")  # Debugging message
 
 # # Function to reject voter
 # def reject_voter():
