@@ -17,6 +17,7 @@ pc_timeout_occurred = False  # Track if a timeout has occurred
 
 # Set up serial communication with CP2102
 try:
+    # ser = serial.Serial('COM8', 9600, timeout=2)  # Adjust COM port as needed
     ser = serial.Serial('COM7', 9600, timeout=2)  # Adjust COM port as needed
     time.sleep(2)  # Allow some time for serial connection to establish
 except serial.SerialException:
@@ -49,6 +50,7 @@ def search_voter():
                         ser.write(f"HAS_VOTED {index_number}\n".encode())
                         time.sleep(2)
                         arduino_response = ser.readline().decode('utf-8').strip()
+                        
                         if arduino_response == "VOTER_VOTED":
                             result_label.config(text="Voter has already voted.", fg="red")
                             confirm_button.config(state=tk.DISABLED)  # Disable confirm button if already voted
@@ -57,7 +59,8 @@ def search_voter():
                             confirm_button.config(state=tk.NORMAL)  # Enable confirm button if eligible
                     else:
                         result_label.config(text="Voter found!", fg="green")
-
+                        confirm_button.config(state=tk.NORMAL)  # Ensure button is enabled if there's no Arduino
+                        
                     searched_index = index_number  # Store the searched index number
                     log_messages.insert(tk.END, f"Voter {index_number} found.\n")
                     return
@@ -65,6 +68,41 @@ def search_voter():
             log_messages.insert(tk.END, f"Voter {index_number} not found.\n")
     else:
         result_label.config(text="Please upload a CSV file and enter an index number.", fg="red")
+
+
+# # Function to search for a voter's details by index number
+# def search_voter():
+#     global searched_index
+#     index_number = index_entry.get()  # Get the entered index number
+#     if voter_database and index_number:
+#         with open(voter_database, mode='r') as file:
+#             reader = csv.reader(file)
+#             for row in reader:
+#                 if row[4] == index_number:  # Assuming index number is in the 5th column
+#                     name, department, program, level = row[3], row[0], row[1], row[2]
+#                     voter_details_label.config(text=f"Name: {name}\nDepartment: {department}\nProgram: {program}\nLevel: {level}\nIndex: {index_number}", fg="green")
+
+#                     # Send query to Arduino to check if the voter has already voted
+#                     if ser:
+#                         ser.write(f"HAS_VOTED {index_number}\n".encode())
+#                         time.sleep(2)
+#                         arduino_response = ser.readline().decode('utf-8').strip()
+#                         if arduino_response == "VOTER_VOTED":
+#                             result_label.config(text="Voter has already voted.", fg="red")
+#                             confirm_button.config(state=tk.DISABLED)  # Disable confirm button if already voted
+#                         else:
+#                             result_label.config(text="Voter found!", fg="green")
+#                             confirm_button.config(state=tk.NORMAL)  # Enable confirm button if eligible
+#                     else:
+#                         result_label.config(text="Voter found!", fg="green")
+
+#                     searched_index = index_number  # Store the searched index number
+#                     log_messages.insert(tk.END, f"Voter {index_number} found.\n")
+#                     return
+#             result_label.config(text="Voter not found.", fg="red")
+#             log_messages.insert(tk.END, f"Voter {index_number} not found.\n")
+#     else:
+#         result_label.config(text="Please upload a CSV file and enter an index number.", fg="red")
 
 
 # Function to confirm voter eligibility
@@ -258,6 +296,17 @@ def read_logs():
             if "PC timeout" in data:
                 handle_timeout()  # Detect and handle PC timeout
             log_messages.insert(tk.END, f"{data}\n")
+            log_messages.see(tk.END)  # Auto-scroll to the bottom after inserting new log
+
+
+# # Function to read logs from Arduino
+# def read_logs():
+#     if ser:
+#         while ser.in_waiting > 0:
+#             data = ser.readline().decode('utf-8').strip()
+#             if "PC timeout" in data:
+#                 handle_timeout()  # Detect and handle PC timeout
+#             log_messages.insert(tk.END, f"{data}\n")
 
 # Function to close the serial port and exit the app
 def on_closing():
